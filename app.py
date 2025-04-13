@@ -12,35 +12,29 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 DB_NAME = 'gym.db'
 
-#------------- Downloading excel file --------------
+#------------- Downloading DB directly --------------
 
+@app.route('/download-db')
+def download_db():
+    from flask import send_file
+    import os
 
-@app.route('/download-usage')
-def download_usage():
-    from io import StringIO
-    import pandas as pd
+    db_path = os.path.join(os.getcwd(), DB_NAME)
 
     try:
-        df = pd.DataFrame({
-            "User": ["Test1", "Test2"],
-            "Usage Hours": [2.5, 4.0]
-        })
-
-        output = StringIO()
-        df.to_csv(output, index=False)
-        output.seek(0)
+        if not os.path.exists(db_path):
+            print("DB file not found.")
+            return "Database file not found", 404
 
         return send_file(
-            BytesIO(output.getvalue().encode()),
+            db_path,
             as_attachment=True,
-            download_name="test_file.csv",
-            mimetype="text/csv"
+            download_name="gym_backup.db",
+            mimetype='application/octet-stream'
         )
     except Exception as e:
-        print("CSV fallback error:", str(e))
-        return "CSV download failed", 500
-
-
+        print("Error sending DB file:", e)
+        return "Could not download DB", 500
 
 # ------------------ DB INIT ------------------
 def init_db():
