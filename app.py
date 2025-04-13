@@ -14,31 +14,32 @@ DB_NAME = 'gym.db'
 
 #------------- Downloading excel file --------------
 
+
 @app.route('/download-usage')
 def download_usage():
-    from io import BytesIO
+    from io import StringIO
     import pandas as pd
 
     try:
-        # Simple sample data
         df = pd.DataFrame({
             "User": ["Test1", "Test2"],
             "Usage Hours": [2.5, 4.0]
         })
 
-        output = BytesIO()
-        df.to_excel(output, index=False, engine='openpyxl')
+        output = StringIO()
+        df.to_csv(output, index=False)
         output.seek(0)
 
         return send_file(
-            output,
+            BytesIO(output.getvalue().encode()),
             as_attachment=True,
-            download_name="test_file.xlsx",
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            download_name="test_file.csv",
+            mimetype="text/csv"
         )
     except Exception as e:
-        print("ERROR IN DOWNLOAD ROUTE:", str(e)) 
-        return "An error occurred while generating the file", 500
+        print("CSV fallback error:", str(e))
+        return "CSV download failed", 500
+
 
 
 # ------------------ DB INIT ------------------
