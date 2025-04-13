@@ -13,55 +13,55 @@ app.secret_key = 'supersecretkey'
 DB_NAME = 'gym.db'
 
 #------------- Downloading excel file --------------
-
 @app.route('/download-usage')
 def download_usage():
     import pandas as pd
     from datetime import datetime
     output = BytesIO()
+    
+    try:
+        query = """ ... """  # Keep as is
 
-    query = """
-        SELECT
-            u.name AS user_name,
-            u.email,
-            u.sex,
-            u.dob,
-            e.name AS equipment_name,
-            e.type AS equipment_type,
-            us.hours_used,
-            us.usage_date,
-            us.end_usage_date
-        FROM usage us
-        JOIN users u ON us.user_id = u.id
-        JOIN equipment e ON us.equipment_id = e.id
-    """
+        with sqlite3.connect(DB_NAME) as conn:
+            df = pd.read_sql_query(query, conn)
 
-    with sqlite3.connect(DB_NAME) as conn:
-        df = pd.read_sql_query(query, conn)
+        print("Data fetched:", df.shape)
 
-    def calc_age(dob):
-        try:
-            birth = datetime.strptime(dob, "%Y-%m-%d")
-            today = datetime.today()
-            return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
-        except:
-            return None
+        def calc_age(dob):
+            try:
+                birth = datetime.strptime(dob, "%Y-%m-%d")
+                today = datetime.today()
+                return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+            except Exception as e:
+                print("Error parsing DOB:", dob, str(e))
+                return None
 
-    df["age"] = df["dob"].apply(calc_age)
+        df["age"] = df["dob"].apply(calc_age)
 
-    def age_group(age):
-        if age is None: return "Unknown"
-        if age < 18: return "Under 18"
-        if age < 30: return "18–29"
-        if age < 45: return "30–44"
-        if age < 60: return "45–59"
-        return "60+"
+        def age_group(age):
+            if age is None: return "Unknown"
+            if age < 18: return "Under 18"
+            if age < 30: return "18–29"
+            if age < 45: return "30–44"
+            if age < 60: return "45–59"
+            return "60+"
 
-    df["age_group"] = df["age"].apply(age_group)
-    df.to_excel(output, index=False, engine='openpyxl')
-    output.seek(0)
+        df["age_group"] = df["age"].apply(age_group)
 
-    return send_file(output, as_attachment=True, download_name="usage_data_detailed.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        print("Processed DataFrame columns:", df.columns)
+
+        df.to_excel(output, index=False, engine='openpyxl')
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="usage_data_detailed.xlsx",
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        print("Download route error:", str(e))
+        return "Something went wrong while generating the file", 500
 
 
 # ------------------ DB INIT ------------------
