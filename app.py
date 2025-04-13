@@ -5,6 +5,8 @@ import bcrypt
 from datetime import datetime
 import threading, time
 from flask import send_file
+from io import BytesIO
+
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -16,9 +18,10 @@ DB_NAME = 'gym.db'
 def download_usage():
     import pandas as pd
     from datetime import datetime
+    output = BytesIO()
 
     query = """
-        SELECT 
+        SELECT
             u.name AS user_name,
             u.email,
             u.sex,
@@ -36,8 +39,7 @@ def download_usage():
     with sqlite3.connect(DB_NAME) as conn:
         df = pd.read_sql_query(query, conn)
 
-    # Compute age group
-    def calculate_age(dob):
+    def calc_age(dob):
         try:
             birth = datetime.strptime(dob, "%Y-%m-%d")
             today = datetime.today()
@@ -45,11 +47,10 @@ def download_usage():
         except:
             return None
 
-    df["age"] = df["dob"].apply(calculate_age)
+    df["age"] = df["dob"].apply(calc_age)
 
     def age_group(age):
-        if age is None:
-            return "Unknown"
+        if age is None: return "Unknown"
         if age < 18: return "Under 18"
         if age < 30: return "18–29"
         if age < 45: return "30–44"
@@ -57,11 +58,10 @@ def download_usage():
         return "60+"
 
     df["age_group"] = df["age"].apply(age_group)
+    df.to_excel(output, index=False, engine='openpyxl')
+    output.seek(0)
 
-    file_path = "usage_data_detailed.xlsx"
-    df.to_excel(file_path, index=False)
-    return send_file(file_path, as_attachment=True)
-
+    return send_file(output, as_attachment=True, download_name="usage_data_detailed.xlsx", mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 # ------------------ DB INIT ------------------
