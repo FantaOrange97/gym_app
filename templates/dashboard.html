@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h2>Welcome, {{ user[0] }}</h2>
+    <p>Balance: £{{ '%.2f' % user[1] }}</p>
+    <h3>Available Equipment</h3>
+    <ul>
+        {% for item in equipment %}
+            <li>
+                <form method="POST" action="{{ url_for('use_equipment') }}">
+                    <strong>{{ item[1] }} ({{ item[2] }})</strong><br>
+                    <input type="hidden" name="equipment_id" value="{{ item[0] }}">
+                    <button name="action" value="start">Start</button>
+                    <button name="action" value="end">End</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</body>
+</html>
