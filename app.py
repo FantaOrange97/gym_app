@@ -13,55 +13,32 @@ app.secret_key = 'supersecretkey'
 DB_NAME = 'gym.db'
 
 #------------- Downloading excel file --------------
+
 @app.route('/download-usage')
 def download_usage():
+    from io import BytesIO
     import pandas as pd
-    from datetime import datetime
-    output = BytesIO()
-    
+
     try:
-        query = """ ... """  # Keep as is
+        # Simple sample data
+        df = pd.DataFrame({
+            "User": ["Test1", "Test2"],
+            "Usage Hours": [2.5, 4.0]
+        })
 
-        with sqlite3.connect(DB_NAME) as conn:
-            df = pd.read_sql_query(query, conn)
-
-        print("Data fetched:", df.shape)
-
-        def calc_age(dob):
-            try:
-                birth = datetime.strptime(dob, "%Y-%m-%d")
-                today = datetime.today()
-                return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
-            except Exception as e:
-                print("Error parsing DOB:", dob, str(e))
-                return None
-
-        df["age"] = df["dob"].apply(calc_age)
-
-        def age_group(age):
-            if age is None: return "Unknown"
-            if age < 18: return "Under 18"
-            if age < 30: return "18–29"
-            if age < 45: return "30–44"
-            if age < 60: return "45–59"
-            return "60+"
-
-        df["age_group"] = df["age"].apply(age_group)
-
-        print("Processed DataFrame columns:", df.columns)
-
+        output = BytesIO()
         df.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
 
         return send_file(
             output,
             as_attachment=True,
-            download_name="usage_data_detailed.xlsx",
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            download_name="test_file.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     except Exception as e:
-        print("Download route error:", str(e))
-        return "Something went wrong while generating the file", 500
+        print("ERROR IN DOWNLOAD ROUTE:", str(e)) 
+        return "An error occurred while generating the file", 500
 
 
 # ------------------ DB INIT ------------------
