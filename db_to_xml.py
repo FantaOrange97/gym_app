@@ -26,7 +26,7 @@ def get_age_group(age):
 
 def db_to_rich_xml(db_path, output_file="full_usage_data.xml"):
     if not os.path.exists(db_path):
-        print(f"❌ Error: '{db_path}' not found.")
+        print(f" Error: '{db_path}' not found.")
         return
 
     try:
@@ -74,17 +74,16 @@ def db_to_rich_xml(db_path, output_file="full_usage_data.xml"):
         # Output to file
         tree = ET.ElementTree(root)
         tree.write(output_file, encoding="utf-8", xml_declaration=True)
-        print(f"✅ Done! Rich XML data written to '{output_file}'")
+        print(f" Done! Rich XML data written to '{output_file}'")
 
     except Exception as e:
-        print("❌ Error during export:", e)
+        print(" Error during export:", e)
     finally:
         conn.close()
 
 
-# 🟢 SETUP
+
 db_path = "gym.db"  # Make sure this file exists in the same folder
 output_file = "full_usage_data.xml"
 
-# 🚀 Run it
 db_to_rich_xml(db_path, output_file)

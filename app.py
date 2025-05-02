@@ -91,7 +91,7 @@ def simulate_usage_increment(user_id):
             c.execute("UPDATE users SET funds = funds + ? WHERE id=?", (increment, user_id))
             c.execute("SELECT funds FROM users WHERE id=?", (user_id,))
             balance = c.fetchone()[0]
-            print(f"[{i*2}s] LIVE BALANCE: User {user_id} = £{balance:.2f}")
+            #print(f"[{i*2}s] LIVE BALANCE: User {user_id} = £{balance:.2f}")
             conn.commit()
 
 # ------------------ ROUTES ------------------
