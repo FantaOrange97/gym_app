@@ -1,29 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>dashbord - robinsons stuff</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h2>ur wins</h2>
-    <a href="/logout">logout here</a>
-
-    {% if auctions %}
-      <div class="auctions">
-        {% for auction in auctions %}
-          <div class="auction-card">
-            <img src="{{ auction[2] }}" alt="{{ auction[0] }}">
-            <h3>{{ auction[0] }}</h3>
-            <p>{{ auction[1] }}</p>
-            <p><b>date:</b> {{ auction[3] }}</p>
-            <p><b>final £ bid:</b> £{{ auction[4] }}</p>
-          </div>
+    <h2>Welcome, {{ user[0] }}</h2>
+    <p>Balance: £{{ '%.2f' % user[1] }}</p>
+    <h3>Available Equipment</h3>
+    <ul>
+        {% for item in equipment %}
+            <li>
+                <form method="POST" action="{{ url_for('use_equipment') }}">
+                    <strong>{{ item[1] }} ({{ item[2] }})</strong><br>
+                    <input type="hidden" name="equipment_id" value="{{ item[0] }}">
+                    <button name="action" value="start">Start</button>
+                    <button name="action" value="end">End</button>
+                </form>
+            </li>
         {% endfor %}
-      </div>
-    {% else %}
-      <p>nothing here yet... maybe u didn't win :(</p>
-    {% endif %}
-  </div>
+    </ul>
+    <a href="{{ url_for('logout') }}">Logout</a>
 </body>
 </html>

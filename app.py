@@ -1,176 +1,186 @@
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 import sqlite3
 import os
 import bcrypt
+from datetime import datetime
+import threading, time
+from flask import send_file
+from io import BytesIO
+
 
 app = Flask(__name__)
-app.secret_key = 'password'  # this should be better
-USER_DB = 'users.db'
-WINS_DB = 'wins.db'
+app.secret_key = 'supersecretkey'
+DB_NAME = 'gym.db'
 
-# make users db if it dont exist
-def init_user_db():
-    with sqlite3.connect(USER_DB) as db:
-        cur = db.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
-                password_hash BLOB,
-                is_admin INTEGER DEFAULT 0
-            )
-        ''')
-        db.commit()
+#------------- Downloading DB directly --------------
 
-# same thing but for win data stuff
-def init_wins_db():
-    with sqlite3.connect(WINS_DB) as db:
-        cur = db.cursor()
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS wins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
-                title TEXT,
-                description TEXT,
-                image TEXT,
-                auction_date TEXT,
-                final_bid REAL
-            )
-        ''')
-        db.commit()
+@app.route('/download-db')
+def download_db():
+    from flask import send_file
+    import os
 
+    db_path = os.path.join(os.getcwd(), DB_NAME)
+
+    try:
+        if not os.path.exists(db_path):
+            print("DB file not found.")
+            return "Database file not found", 404
+
+        return send_file(
+            db_path,
+            as_attachment=True,
+            download_name="gym_backup.db",
+            mimetype='application/octet-stream'
+        )
+    except Exception as e:
+        print("Error sending DB file:", e)
+        return "Could not download DB", 500
+
+# ------------------ DB INIT ------------------
+def init_db():
+    with sqlite3.connect(DB_NAME) as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        telephone TEXT,
+                        dob TEXT,
+                        sex TEXT,
+                        funds REAL DEFAULT 0.00,
+                        password_hash BLOB NOT NULL)''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS equipment (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        type TEXT,
+                        image TEXT)''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS usage (
+                        user_id INTEGER,
+                        equipment_id INTEGER,
+                        usage_date TEXT,
+                        end_usage_date TEXT,
+                        hours_used REAL DEFAULT 0,
+                        FOREIGN KEY(user_id) REFERENCES users(id),
+                        FOREIGN KEY(equipment_id) REFERENCES equipment(id))''')
+
+        # Insert default equipment
+        c.execute("SELECT COUNT(*) FROM equipment")
+        if c.fetchone()[0] == 0:
+            equipment_data = [
+                ('Bench Press', 'Strength', None),
+                ('Dumbbells', 'Weights', None),
+                ('Squat Rack', 'Strength', None),
+                ('Cable Machine', 'Machine', None),
+                ('Treadmill', 'Cardio', None),
+                ('Elliptical', 'Cardio', None),
+                ('name_test_updated', 'type_test_updated', '7427712c78997333016a1651e068507e')
+            ]
+            c.executemany("INSERT INTO equipment (name, type, image) VALUES (?, ?, ?)", equipment_data)
+
+        conn.commit()
+
+# ------------------ Live Balance Updater ------------------
+def simulate_usage_increment(user_id):
+    for i in range(30):  # 30 loops = ~60 seconds
+        time.sleep(2)
+        with sqlite3.connect(DB_NAME) as conn:
+            c = conn.cursor()
+            increment = 1 * (2/3600)  # £1/hour rate
+            c.execute("UPDATE users SET funds = funds + ? WHERE id=?", (increment, user_id))
+            c.execute("SELECT funds FROM users WHERE id=?", (user_id,))
+            balance = c.fetchone()[0]
+            #print(f"[{i*2}s] LIVE BALANCE: User {user_id} = £{balance:.2f}")
+            conn.commit()
+
+# ------------------ ROUTES ------------------
 @app.route('/')
 def index():
     if 'user_id' in session:
-        if session.get('username') == 'admin':
-            return redirect('/admin')
-        return redirect('/dashboard')
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
     if request.method == 'POST':
-        name = request.form['username']
-        pw = request.form['password'].encode('utf-8')
-        admin = 1 if name.lower() == 'admin' else 0
-        hashed = bcrypt.hashpw(pw, bcrypt.gensalt())
+        name = request.form['name']
+        email = request.form['email']
+        telephone = request.form['telephone']
+        dob = request.form['dob']
+        sex = request.form['sex']
+        password = request.form['password'].encode('utf-8')
+        password_hash = bcrypt.hashpw(password, bcrypt.gensalt())
         try:
-            with sqlite3.connect(USER_DB) as db:
-                db.cursor().execute(
-                    'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)',
-                    (name, hashed, admin)
-                )
-                db.commit()
-            return redirect('/')
-        except:
-            return 'name in use bruh', 400
-    return render_template('register.html')
+            with sqlite3.connect(DB_NAME) as conn:
+                c = conn.cursor()
+                c.execute('INSERT INTO users (name, email, telephone, dob, sex, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
+                          (name, email, telephone, dob, sex, password_hash))
+                conn.commit()
+            return redirect(url_for('index'))
+        except sqlite3.IntegrityError:
+            return 'Email already exists', 400
+    return render_template('signup.html')
 
 @app.route('/login', methods=['POST'])
 def login():
-    name = request.form['username']
-    pw = request.form['password'].encode('utf-8')
-
-    with sqlite3.connect(USER_DB) as db:
-        cur = db.cursor()
-        cur.execute('SELECT id, password_hash, is_admin FROM users WHERE username=?', (name,))
-        usr = cur.fetchone()
-
-        if usr and bcrypt.checkpw(pw, usr[1]):
-            session['user_id'] = usr[0]
-            session['username'] = name
-            session['is_admin'] = bool(usr[2])
-            if name == 'admin':
-                return redirect('/admin')
-            return redirect('/dashboard')
-    return 'bad login', 401
+    email = request.form['email']
+    password = request.form['password'].encode('utf-8')
+    with sqlite3.connect(DB_NAME) as conn:
+        c = conn.cursor()
+        c.execute('SELECT id, name, password_hash FROM users WHERE email=?', (email,))
+        user = c.fetchone()
+        if user and bcrypt.checkpw(password, user[2]):
+            session['user_id'] = user[0]
+            session['username'] = user[1]
+            return redirect(url_for('dashboard'))
+    return 'Invalid credentials', 401
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user_id' not in session or 'username' not in session:
-        return redirect('/')
-    with sqlite3.connect(WINS_DB) as db:
-        cur = db.cursor()
-        cur.execute('SELECT title, description, image, auction_date, final_bid FROM wins WHERE username=?',
-                    (session['username'],))
-        data = cur.fetchall()
-    return render_template('dashboard.html', auctions=data)
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    with sqlite3.connect(DB_NAME) as conn:
+        c = conn.cursor()
+        c.execute('SELECT name, funds FROM users WHERE id=?', (session['user_id'],))
+        user_info = c.fetchone()
+        c.execute('SELECT * FROM equipment')
+        equipment = c.fetchall()
+    return render_template('dashboard.html', user=user_info, equipment=equipment)
 
-@app.route('/admin', methods=['GET', 'POST'])
-def admin_panel():
-    if session.get('username') != 'admin':
-        return redirect('/')
+@app.route('/use-equipment', methods=['POST'])
+def use_equipment():
+    action = request.form['action']
+    equipment_id = int(request.form['equipment_id'])
+    user_id = session['user_id']
+    now = datetime.now().isoformat()
 
-    with sqlite3.connect(USER_DB) as db:
-        cur = db.cursor()
-        cur.execute('SELECT username FROM users WHERE username != "admin"')
-        users = [u[0] for u in cur.fetchall()]
-
-    if request.method == 'POST':
-        uname = request.form['username']
-        title = request.form['title']
-        desc = request.form['description']
-        img = request.form['image']
-        date = request.form['auction_date']
-        bid = float(request.form['final_bid'])
-
-        with sqlite3.connect(WINS_DB) as db:
-            db.cursor().execute(
-                'INSERT INTO wins (username, title, description, image, auction_date, final_bid) VALUES (?, ?, ?, ?, ?, ?)',
-                (uname, title, desc, img, date, bid)
-            )
-            db.commit()
-        return redirect('/admin')
-
-    with sqlite3.connect(WINS_DB) as db:
-        cur = db.cursor()
-        cur.execute('SELECT * FROM wins')
-        wins = [{
-            'id': r[0],
-            'username': r[1],
-            'title': r[2],
-            'description': r[3],
-            'image': r[4],
-            'auction_date': r[5],
-            'final_bid': r[6]
-        } for r in cur.fetchall()]
-
-    return render_template('admin_panel.html', users=users, wins=wins)
-
-@app.route('/edit_win/<int:win_id>', methods=['POST'])
-def edit_win(win_id):
-    if session.get('username') != 'admin':
-        return redirect('/')
-    new_title = request.form['title']
-    new_desc = request.form['description']
-    new_img = request.form['image']
-    new_date = request.form['auction_date']
-    new_bid = float(request.form['final_bid'])
-
-    with sqlite3.connect(WINS_DB) as db:
-        db.cursor().execute('''
-            UPDATE wins SET title=?, description=?, image=?, auction_date=?, final_bid=? WHERE id=?
-        ''', (new_title, new_desc, new_img, new_date, new_bid, win_id))
-        db.commit()
-    return redirect('/admin')
-
-@app.route('/delete_win/<int:win_id>')
-def delete_win(win_id):
-    if session.get('username') != 'admin':
-        return redirect('/')
-    with sqlite3.connect(WINS_DB) as db:
-        db.cursor().execute('DELETE FROM wins WHERE id=?', (win_id,))
-        db.commit()
-    return redirect('/admin')
+    with sqlite3.connect(DB_NAME) as conn:
+        c = conn.cursor()
+        if action == 'start':
+            c.execute("INSERT INTO usage (user_id, equipment_id, usage_date) VALUES (?, ?, ?)",
+                      (user_id, equipment_id, now))
+            threading.Thread(target=simulate_usage_increment, args=(user_id,)).start()
+        elif action == 'end':
+            c.execute("SELECT usage_date FROM usage WHERE user_id=? AND equipment_id=? AND end_usage_date IS NULL",
+                      (user_id, equipment_id))
+            row = c.fetchone()
+            if row:
+                start_time = datetime.fromisoformat(row[0])
+                end_time = datetime.fromisoformat(now)
+                hours_used = round((end_time - start_time).total_seconds() / 3600, 2)
+                c.execute("UPDATE usage SET end_usage_date=?, hours_used=? WHERE user_id=? AND equipment_id=? AND end_usage_date IS NULL",
+                          (now, hours_used, user_id, equipment_id))
+        conn.commit()
+    return redirect(url_for('dashboard'))
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect('/')
+    return redirect(url_for('index'))
 
+# ------------------ INIT + RUN ------------------
 if __name__ == '__main__':
-    if not os.path.isfile(USER_DB):
-        init_user_db()
-    if not os.path.isfile(WINS_DB):
-        init_wins_db()
-    app.run(host='0.0.0.0', port=10000, debug=True)
+    if not os.path.exists(DB_NAME):
+        init_db()
+    app.run(host='0.0.0.0', port=8000)
