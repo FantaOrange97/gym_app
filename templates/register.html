@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>reg page - robinson auctions</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h2>make an acount</h2>
+
+    <!-- register form thing -->
+    <form method="POST">
+      <input type="text" name="username" placeholder="pick a name" required>
+      <input type="password" name="password" placeholder="make a pw" required>
+      <button type="submit">sign up</button>
+    </form>
+
+    <p>already got one? <a href="/">log in then</a></p>
+  </div>
+</body>
+</html>

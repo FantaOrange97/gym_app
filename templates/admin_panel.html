@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>admin stuff - Add things</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h2>add some wins (admin zone)</h2>
+
+    <!-- form to like add win -->
+    <form method="POST">
+      <label>user (pick one):</label>
+      <select name="username" required>
+        {% for user in users %}
+          <option>{{ user }}</option>
+        {% endfor %}
+      </select>
+
+      <input type="text" name="title" placeholder="Win title here" required>
+      <textarea name="description" placeholder="some words about it" required></textarea>
+      <input type="text" name="image" placeholder="img url??" required>
+      <input type="date" name="auction_date" required>
+      <input type="number" step="0.01" name="final_bid" placeholder="bid in £" required>
+
+      <button type="submit">add it</button>
+    </form>
+
+    <h3>Old Wins (can change them)</h3>
+
+    {% for win in wins %}
+      <!-- edit form per win thing -->
+      <form method="POST" action="/edit_win/{{ win['id'] }}">
+        <input type="hidden" name="username" value="{{ win['username'] }}">
+        <input type="text" name="title" value="{{ win['title'] }}" required>
+        <textarea name="description" required>{{ win['description'] }}</textarea>
+        <input type="text" name="image" value="{{ win['image'] }}" required>
+        <input type="date" name="auction_date" value="{{ win['auction_date'] }}" required>
+        <input type="number" step="0.01" name="final_bid" value="{{ win['final_bid'] }}" required>
+        <button type="submit">save edit</button>
+        <a href="/delete_win/{{ win['id'] }}" onclick="return confirm('sure to yeet this win?')">delete it</a>
+      </form>
+      <hr>
+    {% endfor %}
+
+    <p><a href="/logout">log out pls</a></p>
+  </div>
+</body>
+</html>
